@@ -1,6 +1,6 @@
 {
   "name": "computer",
-  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Dry-run by default.",
+  "description": "Control Mac apps through an open accessibility adapter, with a confirmation policy for risky actions. Tools are list_apps, get_app_state, click, and type_text only, there is no open_app tool, and opening an app is not a tool. Computer execution in the seed is dry-run unless the Mac adapter is on, so a dry-run result means no app was touched.",
   "version": "0.1.0",
   "tools": [
     {"name": "list_apps", "description": "List apps available to the computer adapter.", "parameters": {"type": "object", "properties": {}}},

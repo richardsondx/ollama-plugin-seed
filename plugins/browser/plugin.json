@@ -13,7 +13,7 @@
     },
     {
       "name": "webmcp.execute_tool",
-      "description": "Execute a WebMCP tool on the page that registered it, through the Chrome extension.",
+      "description": "Call webmcp.list_tools first, and only call a tool list_tools returned, with its exact site origin. A site that did not register WebMCP tools cannot be controlled this way, and a tool list_tools did not return does not exist, even if it sounds plausible. Execute a WebMCP tool on the page that registered it, through the Chrome extension.",
       "parameters": {
         "type": "object",
         "properties": {

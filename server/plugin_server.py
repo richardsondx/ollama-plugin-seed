@@ -24,7 +24,9 @@ Execution rules, enforced here, not in the client:
 - A tool not in the plugin manifest is refused.
 - A computer action classified as handoff or always_confirm, or
   preapproval without pre-approval, returns confirmation_required
-  and does not execute. Computer tools stay dry-run in this seed.
+  and does not execute. Computer tools run through the selected
+  adapter, dry-run by default, Mac adapter only when opted in on
+  macOS, and a dry-run result says plainly that no app was touched.
 - Browser WebMCP tools are real, not dry-run: list_tools returns
   the actual registered tools, and execute_tool queues a job for
   the extension, waits at most 25 seconds for a result, and returns
@@ -298,9 +300,72 @@ class Handler(BaseHTTPRequestHandler):
                     "result": outcome.get("result"),
                 })
                 return
+            # Computer tools run through the selected adapter, after
+            # the confirmation gate above. Dry-run is the default, and
+            # its result says dry-run plainly, never that an app was
+            # opened or touched. In Mac mode the adapter is MacAdapter,
+            # and a tool it does not implement returns an error, never
+            # a pretend success.
+            if plugin_name == "computer":
+                adapter = self.computer
+                dry_run = self.computer_mode == "dry_run"
+                try:
+                    if tool_name == "list_apps":
+                        result = adapter.list_apps()
+                    elif tool_name == "get_app_state":
+                        app = body.get("app", "")
+                        if not app:
+                            self._send(400, {"error": "app is required for get_app_state"})
+                            return
+                        result = adapter.get_app_state(app)
+                    elif tool_name == "click":
+                        if dry_run:
+                            result = adapter.click(
+                                body.get("app", ""),
+                                element_index=body.get("element_index"),
+                                x=body.get("x"),
+                                y=body.get("y"),
+                            )
+                        else:
+                            self._send(200, {
+                                "ok": False,
+                                "plugin": plugin_name,
+                                "tool": tool_name,
+                                "error": "Mac adapter does not implement click yet, no click was performed.",
+                            })
+                            return
+                    elif tool_name == "type_text":
+                        if dry_run:
+                            result = adapter.type_text(body.get("app", ""), body.get("text", ""))
+                        else:
+                            self._send(200, {
+                                "ok": False,
+                                "plugin": plugin_name,
+                                "tool": tool_name,
+                                "error": "Mac adapter does not implement type_text yet, no text was typed.",
+                            })
+                            return
+                    else:
+                        self._send(403, {"error": "tool not enabled or not in manifest"})
+                        return
+                except Exception as exc:
+                    self._send(200, {
+                        "ok": False,
+                        "plugin": plugin_name,
+                        "tool": tool_name,
+                        "error": str(exc),
+                    })
+                    return
+                self._send(200, {
+                    "ok": True,
+                    "dry_run": dry_run,
+                    "plugin": plugin_name,
+                    "tool": tool_name,
+                    "result": result,
+                    "note": "Dry-run: no app was touched." if dry_run else "Real Mac adapter result.",
+                })
+                return
             # Dry-run execution only in the seed for other tools.
-            # Computer execution goes through the macOS adapter,
-            # which is a separate component, not built here.
             self._send(200, {
                 "ok": True,
                 "dry_run": True,
