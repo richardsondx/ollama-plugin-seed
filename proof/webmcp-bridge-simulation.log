@@ -1,0 +1,9 @@
+enable: (200, {'name': 'browser', 'enabled': True})
+register: (200, {'site': 'http://localhost:3000', 'tools_registered': 2})
+list_tools: (200, {'ok': True, 'plugin': 'browser', 'tool': 'webmcp.list_tools', 'tools': [{'site': 'http://localhost:3000', 'name': 'local_echo', 'description': 'Return the text you gave, unchanged.', 'inputSchema': {'type': 'object', 'properties': {}}}, {'site': 'http://localhost:3000', 'name': 'local_time', 'description': 'Return the current local time.', 'inputSchema': {'type': 'object', 'properties': {}}}]})
+queue job: {'id': 'f3163f801d11d016', 'site': 'http://localhost:3000', 'tool': 'local_echo', 'input': {'text': 'hello from curl sim'}}
+queue again (should be null): (200, {'job': None})
+post result: (200, {'ok': True, 'id': 'f3163f801d11d016'})
+execute returned: {'code': 200, 'data': {'ok': True, 'plugin': 'browser', 'tool': 'webmcp.execute_tool', 'site': 'http://localhost:3000', 'result': 'hello from curl sim'}}
+--- timeout case, server restarted with OLLAMA_WEBMCP_TIMEOUT=1 ---
+timeout execute (no poll, no result): (200, {'ok': False, 'plugin': 'browser', 'tool': 'webmcp.execute_tool', 'error': 'no extension result within 1.0 seconds'})
