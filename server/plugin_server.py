@@ -36,6 +36,7 @@ Execution rules, enforced here, not in the client:
 """
 import json
 import os
+import platform
 import secrets
 import sys
 import threading
@@ -45,7 +46,7 @@ from urllib.parse import urlparse
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from computer.adapter import DryRunAdapter  # noqa: E402
+from computer.adapter import DryRunAdapter, MacAdapter  # noqa: E402
 from computer.policy import classify  # noqa: E402
 from plugins.registry import Registry  # noqa: E402
 
@@ -79,6 +80,8 @@ class Handler(BaseHTTPRequestHandler):
     webmcp_lock = threading.Lock()
     webmcp_cond = threading.Condition(webmcp_lock)
     computer = DryRunAdapter()
+    computer_mode = "dry_run"
+    computer_real_requested = False
 
     def log_message(self, *args):
         pass
@@ -111,6 +114,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"skills": self.registry.list_skills()})
         elif path == "/api/tools":
             self._send(200, {"tools": self.registry.enabled_tools()})
+        elif path == "/api/computer/status":
+            self._send(200, {
+                "mode": self.computer_mode,
+                "dry_run": self.computer_mode == "dry_run",
+                "real_requested": self.computer_real_requested,
+            })
         elif path == "/api/webmcp/tools":
             tools = []
             for site, site_tools in self.webmcp_tools.items():
@@ -200,8 +209,9 @@ class Handler(BaseHTTPRequestHandler):
             if not plugin:
                 self._send(403, {"error": "tool not enabled or not in manifest"})
                 return
-            # Computer Use confirmation gate. Computer tools stay
-            # dry-run in this seed, no real computer executor here.
+            # Computer Use confirmation gate. Computer tools are
+            # dry-run unless the server was started on macOS with
+            # OLLAMA_COMPUTER_USE_REAL=1, which selects MacAdapter.
             if plugin_name == "computer":
                 action = body.get("action", tool_name)
                 outcome = classify(action, sensitive_data=bool(body.get("sensitive_data")), preapproved=bool(body.get("preapproved")))
@@ -231,7 +241,22 @@ class Handler(BaseHTTPRequestHandler):
                 tool_requested = body.get("tool", "")
                 registered = self.webmcp_tools.get(site, [])
                 if not site or not any(t["name"] == tool_requested for t in registered):
-                    self._send(400, {"error": "site or tool is not registered: %s %s" % (site, tool_requested)})
+                    known = []
+                    for known_site, known_tools in self.webmcp_tools.items():
+                        for known_tool in known_tools:
+                            known.append({"site": known_site, "tool": known_tool["name"]})
+                    self._send(400, {
+                        "error": (
+                            "Site or tool is not registered: %s %s. "
+                            "Call webmcp.list_tools first and only call a tool that "
+                            "list_tools returned, with its exact site origin. "
+                            "A site that did not register WebMCP tools cannot be "
+                            "controlled this way, and a tool list_tools did not "
+                            "return does not exist, even if it sounds plausible."
+                            % (site, tool_requested)
+                        ),
+                        "registered": known,
+                    })
                     return
                 job_id = secrets.token_hex(8)
                 job = {
@@ -287,13 +312,26 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
+def select_computer_adapter():
+    # Real Mac control is opt in only. Dry-run is the default, and
+    # it is also what runs on any non-Mac machine, even if real
+    # mode was requested, because MacAdapter itself requires Darwin.
+    requested = os.environ.get("OLLAMA_COMPUTER_USE_REAL") == "1"
+    if platform.system() == "Darwin" and requested:
+        return MacAdapter(), "mac", requested
+    return DryRunAdapter(), "dry_run", requested
+
+
 def create_server(port=11435, state_path=None):
     Handler.registry = make_registry(state_path)
     Handler.webmcp_tools = {}
     Handler.webmcp_queue = []
     Handler.webmcp_pending = {}
     Handler.webmcp_results = {}
-    Handler.computer = DryRunAdapter()
+    adapter, mode, requested = select_computer_adapter()
+    Handler.computer = adapter
+    Handler.computer_mode = mode
+    Handler.computer_real_requested = requested
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 
 

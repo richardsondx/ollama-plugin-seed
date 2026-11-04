@@ -134,6 +134,24 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertTrue(data.get("dry_run"))
 
+    def test_unregistered_error_lists_registered_tools(self):
+        code, data = request(self.port, "POST", "/api/tools/browser/webmcp.execute_tool/execute", {
+            "site": "https://example.com", "tool": "made_up_tool", "input": {},
+        })
+        self.assertEqual(code, 400)
+        self.assertIn("list_tools", data.get("error", ""))
+        self.assertIn("did not register", data.get("error", ""))
+        names = [(r["site"], r["tool"]) for r in data.get("registered", [])]
+        self.assertIn(("http://localhost:3000", "local_echo"), names)
+        self.assertIn(("http://localhost:3000", "local_time"), names)
+
+    def test_computer_status_reports_dry_run_here(self):
+        code, data = request(self.port, "GET", "/api/computer/status")
+        self.assertEqual(code, 200)
+        self.assertEqual(data.get("mode"), "dry_run")
+        self.assertTrue(data.get("dry_run"))
+        self.assertFalse(data.get("real_requested"))
+
 
 if __name__ == "__main__":
     unittest.main()
