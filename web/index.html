@@ -5,29 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ollama Plugins</title>
 <style>
-body { font-family: system-ui, sans-serif; margin: 0; background: #f6f6f4; color: #222; }
-header { background: #111; color: #fff; padding: 16px 24px; display: flex; gap: 12px; align-items: center; }
-header .icon { font-size: 24px; }
-nav { display: flex; gap: 8px; padding: 12px 24px; }
-nav button { padding: 8px 14px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 20px; }
-nav button.active { background: #111; color: #fff; }
-main { padding: 8px 24px 32px; max-width: 900px; }
-.card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
-.card h3 { margin: 0 0 6px; }
-button.action { padding: 6px 12px; cursor: pointer; }
-small { color: #666; }
+* { box-sizing: border-box; }
+body { font-family: system-ui, sans-serif; margin: 0; background: #fff; color: #111; display: flex; min-height: 100vh; }
+aside { width: 260px; flex: none; border-right: 1px solid #eee; padding: 20px 16px; }
+aside h2 { margin: 0 0 16px; font-size: 18px; }
+aside .search { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 999px; margin-bottom: 12px; }
+.side-nav button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px; border: 0; background: transparent; cursor: pointer; border-radius: 8px; text-align: left; font-size: 14px; }
+.side-nav button.active { background: #f0f0f0; font-weight: 600; }
+.side-nav .label { margin: 16px 10px 6px; font-size: 12px; color: #888; }
+.side-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.side-item.active { background: #f0f0f0; }
+.side-item .icon { width: 22px; height: 22px; flex: none; }
+main { flex: 1; min-width: 0; padding: 24px 32px 40px; }
+main h1 { margin: 0; font-size: 24px; }
+.sub { color: #666; margin: 6px 0 16px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.tabs button { padding: 6px 14px; border: 0; background: #f0f0f0; border-radius: 999px; cursor: pointer; }
+.tabs button.active { background: #111; color: #fff; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { border: 1px solid #eee; border-radius: 12px; padding: 16px; display: flex; gap: 12px; cursor: pointer; background: #fff; }
+.card .icon { width: 36px; height: 36px; flex: none; }
+.card h3 { margin: 0 0 4px; font-size: 15px; }
+.card p { margin: 0; color: #666; font-size: 13px; line-height: 1.4; }
+.card .plus { margin-left: auto; font-size: 20px; color: #111; background: none; border: 0; cursor: pointer; }
+.detail-crumb { color: #888; font-size: 14px; margin-bottom: 16px; }
+.detail-head { display: flex; gap: 14px; align-items: flex-start; }
+.detail-head .icon { width: 48px; height: 48px; flex: none; }
+.detail-head h2 { margin: 0; font-size: 22px; }
+.detail-head p { margin: 4px 0 0; color: #666; font-size: 14px; }
+.btn { padding: 8px 16px; border-radius: 999px; cursor: pointer; border: 1px solid #ddd; background: #fff; }
+.btn.black { background: #111; color: #fff; border-color: #111; }
+.banner { margin: 20px 0; padding: 28px; border-radius: 16px; background: linear-gradient(120deg, #dbeafe, #e9d5ff, #fce7f3); display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.banner .pill { background: #fff; border-radius: 999px; padding: 10px 16px; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); max-width: 560px; }
+.section { margin-top: 28px; }
+.section h3 { margin: 0 0 12px; }
+.row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid #eee; }
+.row .icon { width: 28px; height: 28px; flex: none; }
+.row p { margin: 0; color: #666; font-size: 13px; }
+table.info { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.info td { padding: 8px 0; border-top: 1px solid #eee; }
+table.info td:first-child { color: #888; width: 160px; }
+small.note { color: #666; }
+@media (max-width: 700px) { body { flex-direction: column; } aside { width: auto; border-right: 0; border-bottom: 1px solid #eee; } .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-<header><span class="icon">🧩</span><div><strong>Plugins</strong><br><small>For Ollama, from the plugin seed. Local only, port 11435.</small></div></header>
-<nav>
-<button id="tab-plugins" class="active">Plugins</button>
-<button id="tab-skills">Skills</button>
-<button id="tab-installed">Installed</button>
-</nav>
+<aside>
+<h2>Customize</h2>
+<input class="search" id="search" placeholder="Search plugins">
+<div class="side-nav">
+<button id="nav-plugins" class="active">Plugins</button>
+<button id="nav-skills">Skills</button>
+</div>
+<div class="label">Installed</div>
+<div id="installed-list"></div>
+</aside>
 <main>
 <div id="view"></div>
-<p><small>WebMCP tools discovered by the Chrome extension appear under Plugins as the browser plugin, after you allow that site. Computer actions that need confirmation return confirmation_required and do not run.</small></p>
+<p><small class="note">Local only, port 11435. WebMCP tools discovered by the Chrome extension appear under Plugins as the browser plugin, after you allow that site. Computer actions that need confirmation return confirmation_required and do not run.</small></p>
 </main>
 <script src="/ui/app.js"></script>
 </body>
