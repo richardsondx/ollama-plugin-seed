@@ -24,5 +24,8 @@
     if (msg && msg.type === "webmcp-execute") {
       window.postMessage({ type: "OLLAMA_WEBMCP_EXECUTE", detail: msg }, location.origin);
     }
+    if (msg && msg.type === "webmcp-rediscover") {
+      window.postMessage({ type: "OLLAMA_WEBMCP_DISCOVER" }, location.origin);
+    }
   });
 })();

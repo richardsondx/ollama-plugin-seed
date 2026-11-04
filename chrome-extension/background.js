@@ -9,12 +9,22 @@ async function allowedSites() {
   const data = await chrome.storage.local.get("allowedSites");
   return data.allowedSites || {};
 }
+function isLocalSite(site) {
+  return !!site && (site === "http://localhost" || site.startsWith("http://localhost:") ||
+    site === "http://127.0.0.1" || site.startsWith("http://127.0.0.1:"));
+}
+function isAllowed(allowed, site) {
+  // Local-only simplification: localhost and 127.0.0.1 are trusted
+  // automatically, so a local demo does not need a manual allow step.
+  // Remote sites still need an explicit popup allow.
+  return !!allowed[site] || isLocalSite(site);
+}
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "webmcp-discovered" && sender.tab) {
     (async () => {
       const allowed = await allowedSites();
-      if (!allowed[msg.site]) return;
+      if (!isAllowed(allowed, msg.site)) return;
       await fetch(SERVER + "/api/webmcp/tools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
