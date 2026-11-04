@@ -1,0 +1,9 @@
+{
+  "name": "skill-creator",
+  "description": "Create or update a skill with appropriately scoped instructions and any needed supporting resources.",
+  "version": "0.1.0",
+  "tools": [
+    {"name": "validate_skill", "description": "Validate a skill folder: frontmatter, naming, and no scaffold placeholders.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}
+  ],
+  "allowlist": {"hosts": ["127.0.0.1"]}
+}

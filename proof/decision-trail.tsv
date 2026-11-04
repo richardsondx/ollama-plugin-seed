@@ -1,0 +1,8 @@
+2026-11-04T11:45:00	translate	seed fork package approved, server admin UI host chosen	user tap	approval/stage1-package.md	approved
+2026-11-04T11:48:00	build	built plugin loader, registry, server, web UI	stage1 package	server/plugin_server.py	done
+2026-11-04T11:49:00	build	built chrome extension and computer adapter	webmcp docs, computer policy	chrome-extension/manifest.json	done
+2026-11-04T11:50:00	test	ran 14 tests, fixed pycache discovery bug	test output	tests/test_loader.py	14 passed
+2026-11-04T11:51:00	test	ran live server, listed 3 plugins, enabled browser, returned tools	live curl	server/plugin_server.py	done
+2026-11-04T11:52:00	verify	independent verifier checked seed, 14 tests passed, gaps found	stage1 package	proof/verifier-report.md	14 passed, 13 behavioural
+2026-11-04T11:52:00	fix	fixed DOM fallback contradiction, background dispatch, postMessage origin	verifier gaps	chrome-extension/background.js	done, tests re-run
+2026-11-04T11:52:00	judge	judge ruled NARROW, gaps recorded	verifier report	proof/judge-verdict.md	NARROW

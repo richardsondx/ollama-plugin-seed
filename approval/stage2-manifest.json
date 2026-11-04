@@ -1,0 +1,58 @@
+{
+  "budget_reserve": 0,
+  "budget_total": 0,
+  "deliverable": "workspace/ollama-plugin-seed/",
+  "external_targets": [
+    "workspace/ollama-plugin-seed/",
+    "127.0.0.1:11435"
+  ],
+  "gates": [
+    "fork",
+    "push",
+    "deploy",
+    "post",
+    "send",
+    "pay",
+    "delete"
+  ],
+  "kit_digest": "ollama-plugin-seed-v1",
+  "manifest_version": "stage2-seed-fork-2026-11-04-01",
+  "method_bearing_steps": [
+    "load plugins",
+    "serve admin UI",
+    "execute tool",
+    "verify claims",
+    "judge verdict"
+  ],
+  "package_version": "stage1-seed-fork-2026-11-04-01",
+  "playbook_digest": "ollama-plugin-seed-v1",
+  "predicate": "Seed passes: 14 tests pass; live server lists 3 plugins, enables one, returns Ollama chat tool shape; disabled plugin exposes no tools; always_confirm computer action returns confirmation_required and does not execute; invalid skill reported as error; no OpenAI code or @oai/sky copied or claimed compatible.",
+  "predicate_hash": "dfa8dfbc2ba03a671098acf9bea59756d68803fd1166eb432569da4efeb70e6f",
+  "prohibitions": [
+    "fork",
+    "push",
+    "deploy",
+    "send",
+    "post",
+    "pay",
+    "delete",
+    "copy OpenAI code",
+    "claim @oai/sky compatibility",
+    "relax predicate",
+    "convert gap to pass"
+  ],
+  "tool_argument_scopes": {
+    "read_file": {
+      "path_prefix": "workspace/"
+    },
+    "write_file": {
+      "path_prefix": "workspace/ollama-plugin-seed/"
+    }
+  },
+  "tools": [
+    "read_file",
+    "write_file",
+    "run_local_tests",
+    "run_local_server"
+  ]
+}

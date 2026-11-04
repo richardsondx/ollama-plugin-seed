@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ollama Plugins</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 0; background: #f6f6f4; color: #222; }
+header { background: #111; color: #fff; padding: 16px 24px; display: flex; gap: 12px; align-items: center; }
+header .icon { font-size: 24px; }
+nav { display: flex; gap: 8px; padding: 12px 24px; }
+nav button { padding: 8px 14px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 20px; }
+nav button.active { background: #111; color: #fff; }
+main { padding: 8px 24px 32px; max-width: 900px; }
+.card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
+.card h3 { margin: 0 0 6px; }
+button.action { padding: 6px 12px; cursor: pointer; }
+small { color: #666; }
+</style>
+</head>
+<body>
+<header><span class="icon">🧩</span><div><strong>Plugins</strong><br><small>For Ollama, from the plugin seed. Local only, port 11435.</small></div></header>
+<nav>
+<button id="tab-plugins" class="active">Plugins</button>
+<button id="tab-skills">Skills</button>
+<button id="tab-installed">Installed</button>
+</nav>
+<main>
+<div id="view"></div>
+<p><small>WebMCP tools discovered by the Chrome extension appear under Plugins as the browser plugin, after you allow that site. Computer actions that need confirmation return confirmation_required and do not run.</small></p>
+</main>
+<script src="/ui/app.js"></script>
+</body>
+</html>
