@@ -1,7 +1,7 @@
 {
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Ollama Chrome"
+    "default_title": "Ollamapaca Chrome"
   },
   "background": {
     "service_worker": "background.js"
@@ -27,7 +27,7 @@
       "world": "MAIN"
     }
   ],
-  "description": "Discover WebMCP tools on pages you allow, and share them with a local Ollama plugin server. WebMCP tools are page-declared only, and never give generic control of a page that did not register them.",
+  "description": "Discover WebMCP tools on pages you allow, and share them with a local Ollamapaca plugin server. WebMCP tools are page-declared only, and never give generic control of a page that did not register them.",
   "host_permissions": [
     "http://127.0.0.1:11435/*"
   ],
@@ -37,7 +37,7 @@
     "128": "icons/icon-128.png"
   },
   "manifest_version": 3,
-  "name": "Ollama Chrome",
+  "name": "Ollamapaca Chrome",
   "permissions": [
     "activeTab",
     "scripting",

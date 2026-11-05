@@ -1,4 +1,4 @@
-// Background service worker for the Ollama Chrome extension.
+// Background service worker for the Ollamapaca Chrome extension.
 // It forwards page-discovered WebMCP tools to the local plugin
 // server, only for sites the user allowed in the popup. It never
 // forwards page content, cookies, or credentials. A page cannot

@@ -12,7 +12,7 @@ button { padding: 8px 14px; border-radius: 999px; border: 1px solid #ddd; backgr
 </head>
 <body>
 <h1>Local WebMCP demo</h1>
-<p>Local only. This page registers two WebMCP tools, nothing leaves this page except the tool names and descriptions the extension reports, and only if you allow this origin in the Ollama Chrome extension popup.</p>
+<p>Local only. This page registers two WebMCP tools, nothing leaves this page except the tool names and descriptions the extension reports, and only if you allow this origin in the Ollamapaca Chrome extension popup.</p>
 <p>Serve it locally, then open it in Chrome:</p>
 <p><code>python3 -m http.server 3000</code> in this folder, then open <code>http://localhost:3000/</code></p>
 <p>Chrome needs WebMCP on: Chrome 149 or later, origin trial, or <code>chrome://flags/#enable-webmcp-testing</code> enabled, then restart Chrome.</p>
@@ -39,7 +39,7 @@ async function register() {
     inputSchema: { type: "object", properties: {} },
     execute: async () => ({ time: new Date().toString() })
   }, { signal: controller.signal });
-  out.textContent = "Registered: local_echo, local_time. Now open the Ollama Chrome extension popup on this page and allow this origin.";
+  out.textContent = "Registered: local_echo, local_time. Now open the Ollamapaca Chrome extension popup on this page and allow this origin.";
 }
 document.getElementById("list").onclick = async () => {
   const ctx = document.modelContext;

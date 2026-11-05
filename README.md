@@ -1,6 +1,6 @@
 # Ollama Plugin Seed
 
-An open source seed for adding Codex-style plugin capability to Ollama, with a Chrome plugin using WebMCP and a Computer Use feature matching OpenAI's, for use with open source models.
+An open source seed for adding Codex-style plugin capability to Ollama, with a Chrome plugin using WebMCP and a Computer Use feature matching OpenAI's, for use with open source models. This seed is the plugin side of Ollamapaca, the Ollama fork with plugins at https://github.com/richardsondx/ollama, branch plugin-seed.
 
 This seed is not a full copy of Ollama, and it is not a copy of OpenAI's ChatGPT extension or its @oai/sky package. It is a small, working base that other people can use to add plugins and skills to Ollama, and a documented path to apply it to a real Ollama fork.
 
