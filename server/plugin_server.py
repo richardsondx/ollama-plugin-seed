@@ -49,6 +49,7 @@ import secrets
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -83,6 +84,30 @@ def _webmcp_timeout():
     return max(0.1, min(25.0, value))
 
 
+def _norm_url(url):
+    text = str(url or "").strip().lower()
+    for prefix in ("https://", "http://"):
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    if text.startswith("www."):
+        text = text[4:]
+    return text.rstrip("/")
+
+
+def _urls_match(requested, tab_url):
+    a = _norm_url(requested)
+    b = _norm_url(tab_url)
+    return bool(a and b and (a == b or a in b or b in a))
+
+
+# Fallback opens, keyed by normalised URL, with a timestamp in
+# seconds. A fallback open is only a fallback because the debugging
+# port was unreachable, so it cannot prove a tab exists, and
+# running it again would open another window for the same URL.
+FALLBACK_OPEN_TTL_SECONDS = 300
+
+
 class Handler(BaseHTTPRequestHandler):
     registry = None
     webmcp_tools = {}
@@ -94,6 +119,7 @@ class Handler(BaseHTTPRequestHandler):
     computer = DryRunAdapter()
     computer_mode = "dry_run"
     computer_real_requested = False
+    fallback_opens = {}
 
     def log_message(self, *args):
         pass
@@ -194,6 +220,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
+        if not isinstance(body, dict):
+            self._send(400, {"error": "Request body must be a JSON object, not a list or other value."})
+            return
         parts = [p for p in path.split("/") if p]
         if len(parts) == 4 and parts[0] == "api" and parts[1] == "plugins" and parts[3] in ("enable", "disable"):
             name = parts[2]
@@ -320,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                     "error": "tool is disallowed in Authorization settings: %s.%s" % (plugin_name, tool_name),
                 })
                 return
-            if plugin_name == "computer" and tool_name in ("click", "type_text", "open_app"):
+            if plugin_name == "computer" and tool_name in ("click", "type_text", "open_app", "press_key"):
                 app = body.get("app", "")
                 if not self.registry.is_app_allowed(app):
                     self._send(403, {
@@ -458,22 +487,41 @@ class Handler(BaseHTTPRequestHandler):
                             }
                         else:
                             try:
-                                tab = cdp_create_tab(url)
-                                result = {"route": "chrome debugging port", "tab": tab}
+                                existing = [
+                                    tab for tab in cdp_list_tabs()
+                                    if _urls_match(url, tab.get("url") or "")
+                                ]
+                                if existing:
+                                    result = {
+                                        "route": "chrome debugging port, existing tab",
+                                        "tab": existing[0],
+                                        "note": "Tab already existed for this URL, no new tab was created. Do not call create_tab again for this URL.",
+                                    }
+                                else:
+                                    tab = cdp_create_tab(url)
+                                    result = {"route": "chrome debugging port", "tab": tab}
                             except Exception:
                                 if platform.system() != "Darwin":
                                     raise
-                                proc = subprocess.run(
-                                    ["open", "-a", "Google Chrome", url],
-                                    capture_output=True, text=True, timeout=30, check=False,
-                                )
-                                if proc.returncode != 0:
-                                    raise RuntimeError("open failed: %s" % proc.stderr.strip())
-                                result = {
-                                    "route": "open -a Google Chrome, debugging port unreachable",
-                                    "url": url,
-                                    "note": "Tab was opened by opening Chrome, tab state is unavailable without the debugging port at 127.0.0.1:9222.",
-                                }
+                                key = _norm_url(url)
+                                now = time.time()
+                                prev = self.fallback_opens.get(key)
+                                if prev and now - prev[0] < FALLBACK_OPEN_TTL_SECONDS:
+                                    result = dict(prev[1])
+                                    result["note"] = "Already opened via fallback, not opening again. Tab state is unavailable without the debugging port at 127.0.0.1:9222."
+                                else:
+                                    proc = subprocess.run(
+                                        ["open", "-a", "Google Chrome", url],
+                                        capture_output=True, text=True, timeout=30, check=False,
+                                    )
+                                    if proc.returncode != 0:
+                                        raise RuntimeError("open failed: %s" % proc.stderr.strip())
+                                    result = {
+                                        "route": "open -a Google Chrome, debugging port unreachable",
+                                        "url": url,
+                                        "note": "Tab was opened by opening Chrome, tab state is unavailable without the debugging port at 127.0.0.1:9222.",
+                                    }
+                                    self.fallback_opens[key] = (now, result)
                 except Exception as exc:
                     self._send(200, {
                         "ok": False,
@@ -547,6 +595,20 @@ class Handler(BaseHTTPRequestHandler):
                         )
                     elif tool_name == "type_text":
                         result = adapter.type_text(body.get("app", ""), body.get("text", ""))
+                    elif tool_name == "press_key":
+                        app = body.get("app", "")
+                        key = body.get("key", "")
+                        if not app:
+                            self._send(400, {"error": "app is required for press_key"})
+                            return
+                        if not key:
+                            self._send(400, {"error": "key is required for press_key"})
+                            return
+                        if key not in ("Enter", "Escape", "Tab", "Space",
+                                       "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"):
+                            self._send(400, {"error": "press_key needs one of: Enter, Escape, Tab, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight"})
+                            return
+                        result = adapter.press_key(app, key)
                     else:
                         self._send(403, {"error": "tool not enabled or not in manifest"})
                         return
@@ -599,6 +661,7 @@ def create_server(port=11435, state_path=None):
     Handler.computer = adapter
     Handler.computer_mode = mode
     Handler.computer_real_requested = requested
+    Handler.fallback_opens = {}
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 
 

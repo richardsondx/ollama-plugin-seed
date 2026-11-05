@@ -46,6 +46,10 @@ class DryRunAdapter:
         self.actions.append({"action": "type_text", "app": app, "text": text})
         return {"ok": True, "dry_run": True}
 
+    def press_key(self, app, key):
+        self.actions.append({"action": "press_key", "app": app, "key": key})
+        return {"ok": True, "dry_run": True}
+
 
 class MacAdapter:
     def __init__(self):
@@ -126,3 +130,29 @@ class MacAdapter:
                 parts.append('tell application "System Events" to key code 36')
         self._osascript("\n".join(parts))
         return {"ok": True, "dry_run": False, "app": app}
+
+    # Key codes are used, not keystroke text, so pressing a key never
+    # types an arbitrary string. Only the key name is ever recorded.
+    _KEY_CODES = {
+        "Enter": 36,
+        "Escape": 53,
+        "Tab": 48,
+        "Space": 49,
+        "ArrowLeft": 123,
+        "ArrowRight": 124,
+        "ArrowDown": 125,
+        "ArrowUp": 126,
+    }
+
+    def press_key(self, app, key):
+        if key not in self._KEY_CODES:
+            raise RuntimeError(
+                "press_key needs one of: %s" % ", ".join(sorted(self._KEY_CODES)))
+        if app:
+            self.open_app(app)
+        script = (
+            'tell application "System Events" to delay 0.5\n'
+            'tell application "System Events" to key code %d' % self._KEY_CODES[key]
+        )
+        self._osascript(script)
+        return {"ok": True, "dry_run": False, "app": app, "key": key}
