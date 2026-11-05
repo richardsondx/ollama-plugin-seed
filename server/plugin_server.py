@@ -126,6 +126,29 @@ class Handler(BaseHTTPRequestHandler):
                 "dry_run": self.computer_mode == "dry_run",
                 "real_requested": self.computer_real_requested,
             })
+        elif path == "/api/authorization":
+            self._send(200, {
+                "computer": {
+                    "mode": self.computer_mode,
+                    "dry_run": self.computer_mode == "dry_run",
+                    "real_requested": self.computer_real_requested,
+                },
+                "enabled_plugins": sorted(self.registry.enabled),
+                "allowed_apps": sorted(self.registry.allowed_apps),
+                "app_restriction_active": bool(self.registry.allowed_apps),
+                "allowed_tools": dict(sorted(self.registry.allowed_tools.items())),
+                "disallowed_tools": sorted(
+                    key for key, value in self.registry.allowed_tools.items()
+                    if value is False),
+                "sites": sorted(self.webmcp_tools.keys()),
+                "localhost_auto_allowed": True,
+                "notes": [
+                    "Allowed sites here are only sites with registered WebMCP tools. The Chrome popup is still the place that adds a remote site, because site permission lives in Chrome storage, not on this server. Localhost and 127.0.0.1 are auto-allowed in local mode.",
+                    "Empty allowed apps means no app restriction yet. Add an app to turn the restriction on.",
+                    "A tool is allowed unless it is explicitly set to false here.",
+                    "Authorization settings do not bypass the confirmation gate for risky actions.",
+                ],
+            })
         elif path == "/api/webmcp/tools":
             tools = []
             for site, site_tools in self.webmcp_tools.items():
@@ -174,6 +197,71 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, {"name": name, "enabled": name in self.registry.enabled})
             return
+        if path == "/api/authorization/request-computer-access":
+            if self.computer_mode != "mac":
+                self._send(200, {
+                    "granted": False,
+                    "mode": self.computer_mode,
+                    "dry_run": self.computer_mode == "dry_run",
+                    "real_requested": self.computer_real_requested,
+                    "reason": "Real mode is off. Start the seed server on macOS with OLLAMA_COMPUTER_USE_REAL=1, then request access again. Dry-run never counts as granted.",
+                    "instructions": "On macOS, start the seed with OLLAMA_COMPUTER_USE_REAL=1, then request access again. If macOS asks, grant Accessibility in System Settings, Privacy and Security, Accessibility, to the app running the seed server, restart the seed, then recheck.",
+                })
+                return
+            try:
+                self.computer.list_apps()
+                self._send(200, {
+                    "granted": True,
+                    "mode": self.computer_mode,
+                    "reason": "A System Events listing succeeded, which means Accessibility appears to be granted to the app running the seed server.",
+                })
+            except Exception as exc:
+                self._send(200, {
+                    "granted": False,
+                    "mode": self.computer_mode,
+                    "reason": str(exc),
+                    "instructions": "Grant Accessibility in System Settings, Privacy and Security, Accessibility, to the app running the seed server, restart the seed, then recheck. Ollamapaca can request and recheck this permission, it cannot grant it itself.",
+                })
+            return
+        if path == "/api/authorization/allowed-apps":
+            app = body.get("app", "")
+            allowed = body.get("allowed")
+            if not isinstance(app, str) or not app or not isinstance(allowed, bool):
+                self._send(400, {"error": "app as a string and allowed as true or false are required"})
+                return
+            self.registry.set_allowed_app(app, allowed)
+            self._send(200, {
+                "app": app,
+                "allowed": allowed,
+                "allowed_apps": sorted(self.registry.allowed_apps),
+                "app_restriction_active": bool(self.registry.allowed_apps),
+                "note": "Empty allowed apps means no app restriction yet. Adding an app turns the restriction on.",
+            })
+            return
+        if path == "/api/authorization/allowed-tools":
+            plugin_name = body.get("plugin", "")
+            tool_name = body.get("tool", "")
+            allowed = body.get("allowed")
+            if not isinstance(allowed, bool):
+                self._send(400, {"error": "plugin, tool, and allowed as true or false are required"})
+                return
+            # find_tool requires the plugin to be enabled, so check the
+            # manifest directly here, otherwise a tool could never be
+            # disallowed before the plugin is enabled.
+            manifest = self.registry.plugins.get(plugin_name) if isinstance(plugin_name, str) else None
+            if not manifest or not any(t["name"] == tool_name for t in manifest.get("tools", [])):
+                self._send(404, {"error": "unknown plugin or tool: %s.%s" % (plugin_name, tool_name)})
+                return
+            self.registry.set_allowed_tool(plugin_name, tool_name, allowed)
+            self._send(200, {
+                "plugin": plugin_name,
+                "tool": tool_name,
+                "allowed": allowed,
+                "disallowed_tools": sorted(
+                    key for key, value in self.registry.allowed_tools.items()
+                    if value is False),
+            })
+            return
         if path == "/api/webmcp/tools":
             site = body.get("site", "")
             tools = body.get("tools", [])
@@ -215,6 +303,24 @@ class Handler(BaseHTTPRequestHandler):
             if not plugin:
                 self._send(403, {"error": "tool not enabled or not in manifest"})
                 return
+            # Authorization enforcement, before any execution and
+            # before the confirmation gate. An explicitly disallowed
+            # tool is refused even if its plugin is enabled. An app
+            # restriction, when set, refuses cua and computer app
+            # actions for apps not on the list. This never bypasses
+            # the confirmation gate below.
+            if not self.registry.is_tool_allowed(plugin_name, tool_name):
+                self._send(403, {
+                    "error": "tool is disallowed in Authorization settings: %s.%s" % (plugin_name, tool_name),
+                })
+                return
+            if plugin_name in ("computer", "cua") and tool_name in ("click", "type_text", "open_app"):
+                app = body.get("app", "")
+                if not self.registry.is_app_allowed(app):
+                    self._send(403, {
+                        "error": "app is not allowed in Authorization settings: %s. Add it to allowed apps first." % app,
+                    })
+                    return
             # Computer Use confirmation gate. Computer tools are
             # dry-run unless the server was started on macOS with
             # OLLAMA_COMPUTER_USE_REAL=1, which selects MacAdapter.

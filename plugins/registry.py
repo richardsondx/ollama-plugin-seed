@@ -18,6 +18,13 @@ class Registry:
         self.state_path = state_path
         self.plugins, self.errors = discover(plugins_root)
         self.enabled = set()
+        # Authorization allowlists. Old state files contain only
+        # "enabled" and must still load, so both lists default empty.
+        # Empty allowed_apps means no app restriction yet, not a
+        # block on everything. A tool is allowed unless it is
+        # explicitly set to false in allowed_tools.
+        self.allowed_apps = set()
+        self.allowed_tools = {}
         if state_path and os.path.exists(state_path):
             try:
                 with open(state_path, encoding="utf-8") as f:
@@ -25,15 +32,49 @@ class Registry:
                 for name in data.get("enabled", []):
                     if name in self.plugins:
                         self.enabled.add(name)
+                for name in data.get("allowed_apps", []) or []:
+                    if isinstance(name, str) and name:
+                        self.allowed_apps.add(name)
+                raw_tools = data.get("allowed_tools", {}) or {}
+                if isinstance(raw_tools, dict):
+                    for key, value in raw_tools.items():
+                        if isinstance(key, str) and isinstance(value, bool):
+                            self.allowed_tools[key] = value
             except (json.JSONDecodeError, OSError):
                 self.enabled = set()
+                self.allowed_apps = set()
+                self.allowed_tools = {}
 
     def save(self):
         if not self.state_path:
             return
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
         with open(self.state_path, "w", encoding="utf-8") as f:
-            json.dump({"enabled": sorted(self.enabled)}, f, indent=2)
+            json.dump({
+                "enabled": sorted(self.enabled),
+                "allowed_apps": sorted(self.allowed_apps),
+                "allowed_tools": dict(sorted(self.allowed_tools.items())),
+            }, f, indent=2)
+
+    def set_allowed_app(self, app, allowed):
+        if allowed:
+            self.allowed_apps.add(app)
+        else:
+            self.allowed_apps.discard(app)
+        self.save()
+
+    def is_app_allowed(self, app):
+        if not self.allowed_apps:
+            return True
+        return app in self.allowed_apps
+
+    def set_allowed_tool(self, plugin_name, tool_name, allowed):
+        self.allowed_tools["%s.%s" % (plugin_name, tool_name)] = bool(allowed)
+        self.save()
+
+    def is_tool_allowed(self, plugin_name, tool_name):
+        return self.allowed_tools.get(
+            "%s.%s" % (plugin_name, tool_name), True)
 
     def list_plugins(self):
         out = []
