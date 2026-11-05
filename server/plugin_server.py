@@ -549,6 +549,7 @@ class Handler(BaseHTTPRequestHandler):
             if plugin_name == "computer":
                 adapter = self.computer
                 dry_run = self.computer_mode == "dry_run"
+                tool_note = None
                 try:
                     if tool_name == "list_apps":
                         result = adapter.list_apps()
@@ -608,7 +609,41 @@ class Handler(BaseHTTPRequestHandler):
                                        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"):
                             self._send(400, {"error": "press_key needs one of: Enter, Escape, Tab, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight"})
                             return
-                        result = adapter.press_key(app, key)
+                        press_result = adapter.press_key(app, key)
+                        # Return a state check in the same result, so
+                        # the model can see success without calling
+                        # another tool and pressing Enter again. The
+                        # press is never retried here, even if the
+                        # state check fails, the failure is reported.
+                        try:
+                            state = adapter.get_app_state(app)
+                        except Exception as state_exc:
+                            state = {
+                                "app": app,
+                                "screenshot": None,
+                                "text": "App state check failed after the press: %s" % state_exc,
+                                "error": str(state_exc),
+                            }
+                        if dry_run:
+                            tool_note = (
+                                "Pressed %s once. Do not press %s again for the same URL, "
+                                "read the state in the result, then answer. Dry-run: no app "
+                                "was touched and no page load was checked, no page loaded "
+                                "is claimed." % (key, key)
+                            )
+                        elif key == "Enter":
+                            tool_note = (
+                                "Pressed Enter once. Do not press Enter again for the same URL, "
+                                "check the state above, then answer."
+                            )
+                        else:
+                            tool_note = (
+                                "Pressed %s once. Do not press %s again for the same URL, "
+                                "check the state above, then answer." % (key, key)
+                            )
+                        result = dict(press_result)
+                        result["state"] = state
+                        result["state_note"] = tool_note
                     else:
                         self._send(403, {"error": "tool not enabled or not in manifest"})
                         return
@@ -626,7 +661,8 @@ class Handler(BaseHTTPRequestHandler):
                     "plugin": plugin_name,
                     "tool": tool_name,
                     "result": result,
-                    "note": "Dry-run: no app was touched." if dry_run else "Real Mac adapter result.",
+                    "note": tool_note if tool_note is not None else (
+                        "Dry-run: no app was touched." if dry_run else "Real Mac adapter result."),
                 })
                 return
             # Dry-run execution only in the seed for other tools.

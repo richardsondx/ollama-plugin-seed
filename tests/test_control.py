@@ -60,6 +60,33 @@ class ControlTest(unittest.TestCase):
         self.assertTrue(data.get("dry_run"))
         request(self.port, "POST", "/api/plugins/computer/disable", {})
 
+    def test_press_key_enter_dry_run_returns_state_and_press_once_note(self):
+        request(self.port, "POST", "/api/plugins/computer/enable", {})
+        code, data = request(self.port, "POST", "/api/tools/computer/press_key/execute",
+                             {"app": "Safari", "key": "Enter"})
+        self.assertEqual(code, 200)
+        self.assertTrue(data.get("dry_run"))
+        result = data.get("result", {})
+        self.assertIn("state", result)
+        self.assertIn("Dry-run", result["state"].get("text", ""))
+        self.assertIn("state_note", result)
+        self.assertIn("once", result["state_note"])
+        self.assertIn("Do not press Enter again", result["state_note"])
+        self.assertIn("no page load was checked", result["state_note"])
+        self.assertIn("Do not press Enter again", data.get("note", ""))
+        request(self.port, "POST", "/api/plugins/computer/disable", {})
+
+    def test_press_key_non_enter_dry_run_returns_state_note(self):
+        request(self.port, "POST", "/api/plugins/computer/enable", {})
+        code, data = request(self.port, "POST", "/api/tools/computer/press_key/execute",
+                             {"app": "Safari", "key": "Tab"})
+        self.assertEqual(code, 200)
+        self.assertTrue(data.get("dry_run"))
+        self.assertIn("state", data.get("result", {}))
+        self.assertIn("once", data.get("result", {}).get("state_note", ""))
+        self.assertIn("no page load was checked", data.get("result", {}).get("state_note", ""))
+        request(self.port, "POST", "/api/plugins/computer/disable", {})
+
     def test_press_key_unknown_key_is_an_error_not_a_success(self):
         request(self.port, "POST", "/api/plugins/computer/enable", {})
         code, data = request(self.port, "POST", "/api/tools/computer/press_key/execute",
@@ -117,6 +144,9 @@ class ControlTest(unittest.TestCase):
         self.assertIn("press_key", by_name)
         self.assertIn("press_key", by_name["type_text"])
         self.assertIn("Enter", by_name["type_text"])
+        self.assertIn("once", by_name["press_key"])
+        self.assertIn("Do not press Enter again", by_name["press_key"])
+        self.assertIn("Do not press Enter again", by_name["type_text"])
         self.assertIn("Do not guess coordinates", by_name["click"])
         self.assertIn("100, 100", by_name["click"])
         with open(os.path.join(ROOT, "plugins", "browser", "plugin.json")) as f:
