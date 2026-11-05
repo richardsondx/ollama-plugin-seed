@@ -43,7 +43,7 @@ class ServerTest(unittest.TestCase):
     def test_plugins_list_and_enable(self):
         code, data = request(self.port, "GET", "/api/plugins")
         self.assertEqual(code, 200)
-        self.assertEqual(len(data["plugins"]), 3)
+        self.assertEqual(len(data["plugins"]), 4)
         code, data = request(self.port, "POST", "/api/plugins/browser/enable", {})
         self.assertEqual(code, 200)
         self.assertTrue(data["enabled"])
@@ -62,6 +62,19 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertTrue(data.get("confirmation_required"))
         self.assertEqual(data["policy"], "always_confirm")
+        request(self.port, "POST", "/api/plugins/computer/disable", {})
+
+    def test_computer_runs_through_adapter_and_says_dry_run(self):
+        request(self.port, "POST", "/api/plugins/computer/enable", {})
+        code, data = request(self.port, "POST", "/api/tools/computer/list_apps/execute", {})
+        self.assertEqual(code, 200)
+        self.assertTrue(data.get("dry_run"))
+        self.assertTrue(data.get("result"))
+        code, data = request(self.port, "POST", "/api/tools/computer/click/execute", {"app": "Chrome"})
+        self.assertEqual(code, 200)
+        self.assertTrue(data.get("dry_run"))
+        code, data = request(self.port, "POST", "/api/tools/computer/get_app_state/execute", {})
+        self.assertEqual(code, 400)
         request(self.port, "POST", "/api/plugins/computer/disable", {})
 
     def test_webmcp_register_and_list(self):

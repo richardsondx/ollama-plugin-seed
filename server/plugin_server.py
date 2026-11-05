@@ -40,6 +40,7 @@ import json
 import os
 import platform
 import secrets
+import subprocess
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +51,9 @@ sys.path.insert(0, ROOT)
 
 from computer.adapter import DryRunAdapter, MacAdapter  # noqa: E402
 from computer.policy import classify  # noqa: E402
+from cua.cdp import create_tab as cdp_create_tab  # noqa: E402
+from cua.cdp import get_tab as cdp_get_tab  # noqa: E402
+from cua.cdp import list_tabs as cdp_list_tabs  # noqa: E402
 from plugins.registry import Registry  # noqa: E402
 
 PLUGINS_ROOT = os.path.join(ROOT, "plugins")
@@ -214,7 +218,7 @@ class Handler(BaseHTTPRequestHandler):
             # Computer Use confirmation gate. Computer tools are
             # dry-run unless the server was started on macOS with
             # OLLAMA_COMPUTER_USE_REAL=1, which selects MacAdapter.
-            if plugin_name == "computer":
+            if plugin_name in ("computer", "cua"):
                 action = body.get("action", tool_name)
                 outcome = classify(action, sensitive_data=bool(body.get("sensitive_data")), preapproved=bool(body.get("preapproved")))
                 if outcome in ("handoff", "always_confirm", "preapproval_or_confirm"):
@@ -363,6 +367,119 @@ class Handler(BaseHTTPRequestHandler):
                     "tool": tool_name,
                     "result": result,
                     "note": "Dry-run: no app was touched." if dry_run else "Real Mac adapter result.",
+                })
+                return
+            # Cua: generic browser and computer control, built from
+            # scratch, not WebMCP page tools and not OpenAI code.
+            # It routes through the selected adapter, after the
+            # confirmation gate above, exactly like computer. Dry-run
+            # never touches an app or opens a tab, and says so.
+            # In Mac mode, tab tools use the Chrome debugging port,
+            # and create_tab falls back to opening Chrome with the
+            # URL if that port is unreachable, stating the route.
+            if plugin_name == "cua":
+                adapter = self.computer
+                dry_run = self.computer_mode == "dry_run"
+                try:
+                    if tool_name == "get_state":
+                        try:
+                            tabs = cdp_list_tabs()
+                            tabs_note = "Chrome tabs from the debugging port."
+                        except Exception as exc:
+                            tabs = []
+                            tabs_note = str(exc)
+                        try:
+                            apps = adapter.list_apps()
+                        except Exception as exc:
+                            apps = []
+                            tabs_note += " Apps listing failed: %s" % exc
+                        result = {
+                            "mode": self.computer_mode,
+                            "dry_run": dry_run,
+                            "apps": apps,
+                            "tabs": tabs,
+                            "tabs_note": tabs_note,
+                        }
+                    elif tool_name == "list_tabs":
+                        if dry_run:
+                            result = {
+                                "dry_run": True,
+                                "tabs": [],
+                                "note": "Dry-run: no Chrome was contacted, no tab was listed.",
+                            }
+                        else:
+                            result = {"tabs": cdp_list_tabs()}
+                    elif tool_name == "create_tab":
+                        url = body.get("url", "")
+                        if not url:
+                            self._send(400, {"error": "url is required for create_tab"})
+                            return
+                        if dry_run:
+                            result = {
+                                "dry_run": True,
+                                "url": url,
+                                "note": "Dry-run: no tab was opened, no app was touched.",
+                            }
+                        else:
+                            try:
+                                tab = cdp_create_tab(url)
+                                result = {"route": "chrome debugging port", "tab": tab}
+                            except Exception:
+                                if platform.system() != "Darwin":
+                                    raise
+                                proc = subprocess.run(
+                                    ["open", "-a", "Google Chrome", url],
+                                    capture_output=True, text=True, timeout=30, check=False,
+                                )
+                                if proc.returncode != 0:
+                                    raise RuntimeError("open failed: %s" % proc.stderr.strip())
+                                result = {
+                                    "route": "open -a Google Chrome, debugging port unreachable",
+                                    "url": url,
+                                    "note": "Tab was opened by opening Chrome, tab state is unavailable without the debugging port at 127.0.0.1:9222.",
+                                }
+                    elif tool_name == "get_tab":
+                        if dry_run:
+                            result = {
+                                "dry_run": True,
+                                "note": "Dry-run: no Chrome was contacted, no tab was fetched.",
+                            }
+                        else:
+                            result = {"tab": cdp_get_tab(
+                                tab_id=body.get("tab_id"), url=body.get("url"))}
+                    elif tool_name == "open_app":
+                        app = body.get("app", "")
+                        if not app:
+                            self._send(400, {"error": "app is required for open_app"})
+                            return
+                        result = adapter.open_app(app)
+                    elif tool_name == "click":
+                        result = adapter.click(
+                            body.get("app", ""),
+                            element_index=body.get("element_index"),
+                            x=body.get("x"),
+                            y=body.get("y"),
+                        )
+                    elif tool_name == "type_text":
+                        result = adapter.type_text(body.get("app", ""), body.get("text", ""))
+                    else:
+                        self._send(403, {"error": "tool not enabled or not in manifest"})
+                        return
+                except Exception as exc:
+                    self._send(200, {
+                        "ok": False,
+                        "plugin": plugin_name,
+                        "tool": tool_name,
+                        "error": str(exc),
+                    })
+                    return
+                self._send(200, {
+                    "ok": True,
+                    "dry_run": dry_run,
+                    "plugin": plugin_name,
+                    "tool": tool_name,
+                    "result": result,
+                    "note": "Dry-run: no app was touched." if dry_run else "Real adapter result.",
                 })
                 return
             # Dry-run execution only in the seed for other tools.

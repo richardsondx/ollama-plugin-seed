@@ -10,10 +10,10 @@ from plugins.registry import Registry  # noqa: E402
 
 
 class LoaderTest(unittest.TestCase):
-    def test_discover_three_plugins(self):
+    def test_discover_four_plugins(self):
         plugins, errors = discover(os.path.join(ROOT, "plugins"))
         self.assertEqual(errors, {})
-        self.assertEqual(sorted(plugins), ["browser", "computer", "skill-creator"])
+        self.assertEqual(sorted(plugins), ["browser", "computer", "cua", "skill-creator"])
         self.assertTrue(plugins["browser"]["tools"])
 
     def test_registry_enable_disable_and_tools(self):
