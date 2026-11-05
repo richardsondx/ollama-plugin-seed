@@ -40,6 +40,28 @@ In dry-run mode, or with WebMCP alone, opening google.com will not work, and the
 
 Click and type_text need coordinates and an app name, for example app Google Chrome, x and y as integers. Risky actions need confirmation first, under the computer policy. A click or type with sensitive data, or an action classified as handoff or always confirm, returns confirmation_required and does not run.
 
+## Transcript, step 1
+
+A browser or computer turn is shown as a collapsible summary, not as a tool log. Step names, in order:
+
+- computer.open_app: Open app name
+- browser.create_tab: Open URL in a new tab
+- computer.type_text: Type in app name (typed text is never shown in a step name)
+- computer.press_key: Press key in app name
+- computer.get_app_state and computer.get_state: Check app name, or Check computer
+- browser.get_tab: Check tab
+- browser.list_tabs: Check tabs
+- computer.list_apps: List apps
+- computer.click: Click in app name
+- browser.webmcp.list_tools: List page tools
+- browser.webmcp.execute_tool: Run page tool name
+
+The summary header shows "Working" while the turn is streaming, and "Worked for Xs" once streaming ends, where X is the real elapsed time measured in the browser from when the user message was sent in that session to when the final answer arrived. Turns loaded from history, where no start time was observed, show the steps with no timer, rather than a made-up time. Raw tool names, argument JSON, and result JSON are hidden behind each step's Details toggle.
+
+Intent and final answer are model behaviour, driven by the plugin descriptions: before the first tool call, the model should state in one plain sentence what it is about to do, and after a successful open, answer in one sentence naming the app, the site, and the URL as a link, and stop. If a model does not follow that wording, the step names and timer still work, but the intent sentence will not appear. That is a model behaviour gap, not a UI bug.
+
+What is not in step 1: a live window thumbnail. That needs screen capture in step 2, with Screen Recording permission on Mac and image tool results in chat, and it is not built here. This summary never claims to show a live window.
+
 ## What is not proven here
 
 This change was built and tested in a Linux sandbox, with no Chrome and no macOS. Dry-run behaviour, the manifests, the debugging port error, and the confirmation gate are proven by tests. Real Mac behaviour, including open_app, click, type_text, and tab control through the debugging port, is not proven here. It needs the Mac steps above, and must be checked on a Mac before it is claimed to work there.
