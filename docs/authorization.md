@@ -14,11 +14,11 @@ so plainly, and the plugin list, enable, disable, and chat still work.
   button tries a harmless System Events listing. If that succeeds,
   access appears granted. If it fails, the section shows the
   System Settings step and asks you to recheck after granting.
-- Allowed apps: apps that cua and computer app actions may open,
+- Allowed apps: apps that computer app actions may open,
   click, or type into. Empty means no app restriction yet. Adding
   one app turns the restriction on, and any other app is refused
   with a plain error.
-- Allowed tools: each tool for browser, computer, and cua, on or
+- Allowed tools: each tool for browser and computer, on or
   off. A tool set to off is refused with a 403 even if its plugin
   is enabled. A tool with no setting is allowed, as today.
 - Allowed sites: sites with registered WebMCP tools, as seen by
@@ -42,7 +42,7 @@ so plainly, and the plugin list, enable, disable, and chat still work.
 ## How to grant computer access on Mac, step by step
 
 1. Pull the fork and the seed after this change is pushed.
-2. Enable cua in the Plugins page.
+2. Enable browser and computer in the Plugins page.
 3. Start the seed server on macOS with
    OLLAMA_COMPUTER_USE_REAL=1.
 4. Open Authorization in the Plugins page and click Request
@@ -54,7 +54,8 @@ so plainly, and the plugin list, enable, disable, and chat still work.
    not dry-run.
 7. Add Google Chrome to allowed apps, if you want the app
    restriction on, then ask, with a tool-capable model,
-   @cua create a tab for https://google.com.
+   @browser create a tab for https://google.com, and
+   @computer open Chrome to open an app.
 
 ## Why fork enable and seed enable both matter
 

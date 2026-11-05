@@ -39,7 +39,13 @@ class Registry:
                 if isinstance(raw_tools, dict):
                     for key, value in raw_tools.items():
                         if isinstance(key, str) and isinstance(value, bool):
-                            self.allowed_tools[key] = value
+                            # Drop settings for plugins that no longer
+                            # exist, so a removed plugin such as cua
+                            # can never keep offering tools through
+                            # an old state file. Enabled names above
+                            # are filtered the same way.
+                            if key.split(".", 1)[0] in self.plugins:
+                                self.allowed_tools[key] = value
             except (json.JSONDecodeError, OSError):
                 self.enabled = set()
                 self.allowed_apps = set()

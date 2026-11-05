@@ -83,28 +83,28 @@ class AuthorizationServerTest(unittest.TestCase):
         self.assertIn("dry-run", (data.get("reason", "") + data.get("instructions", "")).lower())
 
     def test_allowed_tools_disallow_returns_403(self):
-        request(self.port, "POST", "/api/plugins/cua/enable", {})
+        request(self.port, "POST", "/api/plugins/computer/enable", {})
         code, data = request(
             self.port, "POST", "/api/authorization/allowed-tools",
-            {"plugin": "cua", "tool": "click", "allowed": False})
+            {"plugin": "computer", "tool": "click", "allowed": False})
         self.assertEqual(code, 200)
-        self.assertIn("cua.click", data["disallowed_tools"])
+        self.assertIn("computer.click", data["disallowed_tools"])
         code, data = request(
-            self.port, "POST", "/api/tools/cua/click/execute",
+            self.port, "POST", "/api/tools/computer/click/execute",
             {"app": "Google Chrome", "x": 10, "y": 10})
         self.assertEqual(code, 403)
         self.assertIn("disallowed", data["error"])
         request(
             self.port, "POST", "/api/authorization/allowed-tools",
-            {"plugin": "cua", "tool": "click", "allowed": True})
+            {"plugin": "computer", "tool": "click", "allowed": True})
 
     def test_allowed_apps_restriction_refuses_other_apps(self):
-        request(self.port, "POST", "/api/plugins/cua/enable", {})
+        request(self.port, "POST", "/api/plugins/computer/enable", {})
         request(
             self.port, "POST", "/api/authorization/allowed-apps",
             {"app": "Google Chrome", "allowed": True})
         code, data = request(
-            self.port, "POST", "/api/tools/cua/click/execute",
+            self.port, "POST", "/api/tools/computer/click/execute",
             {"app": "TextEdit", "x": 10, "y": 10})
         self.assertEqual(code, 403)
         self.assertIn("not allowed", data["error"])

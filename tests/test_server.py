@@ -43,7 +43,7 @@ class ServerTest(unittest.TestCase):
     def test_plugins_list_and_enable(self):
         code, data = request(self.port, "GET", "/api/plugins")
         self.assertEqual(code, 200)
-        self.assertEqual(len(data["plugins"]), 4)
+        self.assertEqual(len(data["plugins"]), 3)
         code, data = request(self.port, "POST", "/api/plugins/browser/enable", {})
         self.assertEqual(code, 200)
         self.assertTrue(data["enabled"])

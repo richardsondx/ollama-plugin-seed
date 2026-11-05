@@ -1,24 +1,28 @@
-# Cua: generic browser and computer control
+# Cua is now internal, not a plugin
 
-## What cua is
+Cua was the internal engine for generic browser and computer control, built from scratch in this seed. It is modelled on the pattern ChatGPT uses for its Chrome and Computer plugins, where one tool layer can open a tab, read tab state, open an app, click at coordinates, and type text. It is not a copy of OpenAI code, and it does not use any OpenAI package.
 
-Cua is a plugin for generic control, built from scratch in this seed. It is modelled on the pattern ChatGPT uses for its Chrome and Computer plugins, where a single tool layer can open a tab, read tab state, open an app, click at coordinates, and type text. It is not a copy of OpenAI code, and it does not use any OpenAI package.
+That engine is still here, in cua/cdp.py for Chrome tabs and in computer/adapter.py for Mac apps. What changed is the surface: there is no cua plugin to enable, and no @cua to type. Use @browser for tabs and @computer for apps.
 
-Cua has seven tools: get_state, list_tabs, create_tab, get_tab, open_app, click, and type_text.
+## Where each tool now lives
 
-## What cua is not
+- @browser, list_tabs: Chrome tabs through the debugging port at 127.0.0.1:9222.
+- @browser, create_tab: open a Chrome tab with a URL, through the debugging port first, or by opening Chrome with the URL on macOS if the port is unreachable, with the route stated in the result.
+- @browser, get_tab: one Chrome tab by tab id or URL substring, through the debugging port.
+- @browser, webmcp.list_tools and webmcp.execute_tool: unchanged, page tools a site registered, through the Chrome extension. These are different from tab tools. A page tool only runs what a page registered. A tab tool opens a tab directly.
+- @computer, list_apps and get_app_state: apps and app state, as before.
+- @computer, get_state: mode, running apps, and Chrome tabs if the debugging port answers, else tabs unavailable with the port instruction.
+- @computer, open_app: open a Mac app by name.
+- @computer, click: click at screen coordinates x and y in a Mac app.
+- @computer, type_text: type text into a Mac app, never logged.
 
-Cua is not WebMCP. WebMCP only exposes tools a page itself registered, for sites the user allowed, so it cannot open google.com or any site that registered nothing. Cua does not need a page to register anything, because it talks to Chrome itself through the Chrome debugging port, and to Mac apps through the accessibility adapter.
+## How to use it
 
-Cua is also not a finished computer-use product. It has no screenshot tool, no accessibility tree, and no visual element search in this version. Click needs screen coordinates x and y, and type_text types into the app you name, after activating it. If you do not know the coordinates, cua cannot guess them.
-
-## How to enable it
-
-Enable cua in the Plugins page, the same as browser and computer. A mention in chat, such as @cua, picks an enabled plugin for one turn only. It does not enable a plugin by itself.
+Enable browser and computer in the Plugins page. A mention in chat, such as @browser or @computer, picks an enabled plugin for one turn only. It does not enable a plugin by itself. Do not enable cua, there is nothing to enable under that name any more, and an old state file that still lists cua is ignored, it offers no tools.
 
 ## Dry-run first
 
-By default the seed server runs in dry-run mode. In dry-run mode, cua returns dry_run true for every tool, and no app is opened, no tab is opened, no click happens, and no text is typed. That is the safe way to test prompts and tool names. A dry-run result is never a real result, and the server says so in the result.
+By default the seed server runs in dry-run mode. In dry-run mode, tab and app tools return dry_run true, and no tab is opened, no app is opened, no click happens, and no text is typed. That is the safe way to test prompts and tool names. A dry-run result is never a real result, and the server says so in the result.
 
 ## Real mode on Mac
 
@@ -32,10 +36,10 @@ Without the debugging port, list_tabs and get_tab return a plain error naming th
 
 ## Opening google.com
 
-In dry-run mode, or with WebMCP alone, opening google.com will not work, and cua will say so. In Mac mode, with real mode on and Accessibility granted, ask: @cua create a tab for https://google.com. That uses create_tab, through the debugging port if it is reachable, or by opening Chrome with the URL if it is not.
+In dry-run mode, or with WebMCP alone, opening google.com will not work, and the browser plugin will say so. In Mac mode, with real mode on and Accessibility granted, ask: @browser create a tab for https://google.com. That uses create_tab, through the debugging port if it is reachable, or by opening Chrome with the URL if it is not. To open an app instead, ask: @computer open Chrome.
 
 Click and type_text need coordinates and an app name, for example app Google Chrome, x and y as integers. Risky actions need confirmation first, under the computer policy. A click or type with sensitive data, or an action classified as handoff or always confirm, returns confirmation_required and does not run.
 
 ## What is not proven here
 
-This plugin was built and tested in a Linux sandbox, with no Chrome and no macOS. Dry-run behaviour, the manifest, the debugging port error, and the confirmation gate are proven by tests. Real Mac behaviour, including open_app, click, type_text, and tab control through the debugging port, is not proven here. It needs the Mac steps above, and must be checked on a Mac before it is claimed to work there.
+This change was built and tested in a Linux sandbox, with no Chrome and no macOS. Dry-run behaviour, the manifests, the debugging port error, and the confirmation gate are proven by tests. Real Mac behaviour, including open_app, click, type_text, and tab control through the debugging port, is not proven here. It needs the Mac steps above, and must be checked on a Mac before it is claimed to work there.
