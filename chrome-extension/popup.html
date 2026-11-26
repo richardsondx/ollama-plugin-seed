@@ -4,18 +4,24 @@ body{font-family:system-ui,-apple-system,sans-serif;width:340px;padding:16px;col
 .header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .header img{width:32px;height:32px;border-radius:8px}
 .header h3{margin:0;font-size:16px}
-#site{font-size:13px;color:#525252;margin:8px 0 12px;word-break:break-all}
-button{padding:8px 14px;border-radius:999px;cursor:pointer;font-size:13px;font-weight:600}
+h4{font-size:13px;margin:16px 0 6px}
+#status{font-size:12px;border-radius:8px;padding:8px 10px;background:#f5f5f5;color:#525252}
+#status.ok{background:#ecfdf5;color:#065f46}
+#status.bad{background:#fef2f2;color:#991b1b}
+label.toggle{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px;cursor:pointer}
+#site{font-size:13px;color:#525252;margin:6px 0 10px;word-break:break-all}
+button{padding:7px 12px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:600}
 #allow{background:#171717;color:#fff;border:1px solid #171717}
 #deny{background:#fff;color:#525252;border:1px solid #d4d4d4}
 small{color:#737373;line-height:1.5}
-.note{font-size:12px;color:#525252;background:#f5f5f5;border-radius:8px;padding:8px 10px;margin-top:12px}
 </style></head>
 <body>
 <div class="header"><img src="icons/icon-48.png" alt=""><h3>Ollamapaca Chrome</h3></div>
+<div id="status">Checking the local plugin executor.</div>
+<label class="toggle"><input type="checkbox" id="control"> <span>Let local Ollamapaca models control this browser: open tabs, read pages, click and type. Chrome shows a "started debugging this browser" bar while a click or key press runs.</span></label>
+<h4>WebMCP site tools</h4>
 <p id="site">Loading site.</p>
-<p><button id="allow">Allow this site for WebMCP</button> <button id="deny">Remove site</button></p>
-<p><small>Allowing a site only lets its page-declared WebMCP tools be listed. It does not give generic control of the page, and it does not share cookies or passwords. WebMCP is a proposed standard, and a page must opt in by registering tools.</small></p>
-<p class="note" id="localnote" style="display:none">Local site: localhost and 127.0.0.1 are allowed automatically in local mode, and tools are re-discovered when you click Allow, no page reload needed.</p>
+<p><button id="allow">Allow this site</button> <button id="deny">Remove site</button></p>
+<p><small>Allowing a site shares the WebMCP tools that page registered. Localhost is allowed automatically. Cookies, saved passwords and password field values are never shared.</small></p>
 <script src="popup.js"></script>
 </body></html>

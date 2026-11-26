@@ -27,9 +27,10 @@
       "world": "MAIN"
     }
   ],
-  "description": "Discover WebMCP tools on pages you allow, and share them with a local Ollamapaca plugin server. WebMCP tools are page-declared only, and never give generic control of a page that did not register them.",
+  "description": "Lets a local Ollamapaca model control this browser (open tabs, read pages, click, type) through the local plugin executor on 127.0.0.1, and shares page-declared WebMCP tools for sites you allow. Nothing leaves your machine.",
   "host_permissions": [
-    "http://127.0.0.1:11435/*"
+    "http://127.0.0.1:11435/*",
+    "<all_urls>"
   ],
   "icons": {
     "16": "icons/icon-16.png",
@@ -40,9 +41,11 @@
   "name": "Ollamapaca Chrome",
   "permissions": [
     "activeTab",
+    "alarms",
+    "debugger",
     "scripting",
     "storage",
     "tabs"
   ],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

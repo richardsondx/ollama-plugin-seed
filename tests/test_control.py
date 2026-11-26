@@ -104,8 +104,8 @@ class ControlTest(unittest.TestCase):
             code, data = request(self.port, "POST", "/api/tools/browser/create_tab/execute",
                                  {"url": "https://google.com"})
             self.assertEqual(code, 200)
-            self.assertTrue(data.get("dry_run"))
-            self.assertIn("no tab was opened", data.get("result", {}).get("note", ""))
+            self.assertFalse(data.get("ok"))
+            self.assertIn("extension is not connected", data.get("error", ""))
         request(self.port, "POST", "/api/plugins/browser/disable", {})
 
     def test_url_matching_for_dedup(self):
@@ -152,8 +152,8 @@ class ControlTest(unittest.TestCase):
         with open(os.path.join(ROOT, "plugins", "browser", "plugin.json")) as f:
             browser = json.load(f)
         browser_by_name = {t["name"]: t["description"] for t in browser["tools"]}
-        self.assertIn("do not call create_tab again", browser_by_name["create_tab"])
-        self.assertIn("Do not poll", browser_by_name["get_tab"])
+        self.assertIn("already showing it", browser_by_name["create_tab"])
+        self.assertIn("ref", browser_by_name["click"])
 
 
 if __name__ == "__main__":
