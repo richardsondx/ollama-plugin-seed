@@ -8,7 +8,8 @@ This seed is not a full copy of Ollama, and it is not a copy of OpenAI's ChatGPT
 - Loads plugins from folders, each with a plugin.json manifest and a SKILL.md skill, validated on load
 - Serves a Plugins admin page at http://127.0.0.1:11435, with tabs for Plugins, Skills, and Installed, and enable and disable controls
 - Exposes enabled plugin tools in Ollama chat tool shape, so they can be passed to Ollama /api/chat as tool definitions
-- Discovers page-declared WebMCP tools through a Chrome extension, only for sites the user allowed, and registers them with the local plugin server
+- Controls your real Chrome through the Ollamapaca Chrome extension: open tabs, navigate, read pages as numbered elements, click, type, press keys and scroll. No --remote-debugging-port needed
+- Discovers page-declared WebMCP tools through the same extension, only for sites the user allowed, and registers them with the local plugin server
 - Provides a Computer Use adapter that is dry-run by default, with a confirmation policy for risky actions, and a gated macOS adapter for real use
 
 ## Quick start
@@ -24,7 +25,14 @@ Run tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
-Load the Chrome extension unpacked from chrome-extension/, allow a site in the popup, and visit a page that registers WebMCP tools. The extension only forwards tools from allowed sites, and it never forwards cookies, passwords, or page content.
+Load the Chrome extension: open chrome://extensions, turn on Developer mode, click Load unpacked, and pick the chrome-extension/ folder. The popup shows whether it is connected to this server. Then try it without a model:
+```
+curl -X POST 127.0.0.1:11435/api/plugins/browser/enable
+curl -X POST 127.0.0.1:11435/api/tools/browser/create_tab/execute -d '{"url":"example.com"}'
+```
+The extension long-polls 127.0.0.1:11435/api/browser/next for actions and posts results to /api/browser/result. Browser control can be switched off in its popup. It never reads cookies or saved passwords and never returns password field values. After you change the extension files, click reload on its card in chrome://extensions.
+
+The Ollamapaca desktop app starts this server by itself when it finds it in ~/.ollamapaca/seed, so the usual setup is `git clone https://github.com/richardsondx/ollama-plugin-seed ~/.ollamapaca/seed` plus the extension.
 
 To use plugin tools with Ollama, run Ollama on its usual port 11434, take the tool definitions from /api/tools on this server, pass them in a /api/chat request, execute the returned tool calls through this server, and return the results as tool messages. See docs/ollama-chat-flow.md.
 
@@ -67,7 +75,6 @@ If your agent asks which model to use, pick a tool-capable model you have instal
 
 ## What it does not do
 - It does not copy OpenAI code, the ChatGPT browser extension, or @oai/sky. Computer Use here is an open adapter with the same confirmation categories, not the same implementation.
-- It does not give generic control of arbitrary pages. WebMCP only exposes tools a page registered. Arbitrary sites need a separate DOM and tab layer, which is not in this seed.
 - It does not run computer actions live by default. Seed execution is dry-run, and computer actions that need confirmation return confirmation_required instead of running.
 - It does not include Ollama's model runners. Do not touch llama/ or ml/ code when applying this seed to a real fork.
 

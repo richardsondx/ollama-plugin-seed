@@ -51,7 +51,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -120,6 +120,12 @@ class Handler(BaseHTTPRequestHandler):
     computer_mode = "dry_run"
     computer_real_requested = False
     fallback_opens = {}
+    # Browser control bridge to the Chrome extension.
+    browser_queue = []
+    browser_results = {}
+    browser_pending = {}
+    extension_last_seen = 0.0
+    extension_info = {}
 
     def log_message(self, *args):
         pass
@@ -187,6 +193,34 @@ class Handler(BaseHTTPRequestHandler):
                 for tool in site_tools:
                     tools.append({"site": site, **tool})
             self._send(200, {"tools": tools})
+        elif path == "/api/browser/status":
+            self._send(200, self._browser_status())
+        elif path == "/api/browser/next":
+            # Long poll from the Chrome extension: the oldest browser or
+            # WebMCP job, waiting up to `wait` seconds for one. Every
+            # poll is also the extension's heartbeat.
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                wait = max(0.0, min(25.0, float(query.get("wait", ["0"])[0])))
+            except ValueError:
+                wait = 0.0
+            Handler.extension_info = {
+                "version": query.get("version", [""])[0],
+                "control": query.get("control", ["1"])[0] == "1",
+            }
+            Handler.extension_last_seen = time.time()
+            job = None
+            deadline = time.time() + wait
+            with self.webmcp_cond:
+                while True:
+                    job = self._next_job_locked()
+                    remaining = deadline - time.time()
+                    if job or remaining <= 0:
+                        break
+                    self.webmcp_cond.wait(timeout=min(remaining, 1.0))
+                    Handler.extension_last_seen = time.time()
+            Handler.extension_last_seen = time.time()
+            self._send(200, {"job": job})
         elif path == "/api/webmcp/execute-queue":
             job = None
             with self.webmcp_lock:
@@ -314,6 +348,16 @@ class Handler(BaseHTTPRequestHandler):
             self.webmcp_tools[site] = clean
             self._send(200, {"site": site, "tools_registered": len(clean)})
             return
+        if path == "/api/browser/result":
+            job_id = body.get("id", "")
+            with self.webmcp_cond:
+                if job_id not in self.browser_pending:
+                    self._send(404, {"error": "unknown job: %s" % job_id})
+                    return
+                self.browser_results[job_id] = {"result": body.get("result"), "error": body.get("error")}
+                self.webmcp_cond.notify_all()
+            self._send(200, {"ok": True, "id": job_id})
+            return
         if path == "/api/webmcp/result":
             job_id = body.get("id", "")
             with self.webmcp_lock:
@@ -374,6 +418,24 @@ class Handler(BaseHTTPRequestHandler):
                         "message": "This computer action needs confirmation before it runs, or a handoff to the user.",
                     })
                     return
+            # Browser control through the Chrome extension. This is the
+            # main route: it drives the user's real Chrome, needs no
+            # debugging port, and is not dry-run. Tab tools fall back
+            # to the debugging port only when the extension is not
+            # connected.
+            if plugin_name == "browser" and tool_name in BROWSER_EXTENSION_TOOLS:
+                if self._extension_connected():
+                    outcome = self._run_browser_job(tool_name, body)
+                    if outcome.get("error"):
+                        self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name, "error": outcome["error"]})
+                    else:
+                        self._send(200, {"ok": True, "plugin": plugin_name, "tool": tool_name,
+                                         "route": "chrome extension", "result": outcome.get("result")})
+                    return
+                if tool_name not in ("list_tabs", "create_tab", "get_tab"):
+                    self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name,
+                                     "error": EXTENSION_MISSING})
+                    return
             # Browser WebMCP: real execution through the extension.
             if plugin_name == "browser" and tool_name == "webmcp.list_tools":
                 tools = []
@@ -412,6 +474,7 @@ class Handler(BaseHTTPRequestHandler):
                 job_id = secrets.token_hex(8)
                 job = {
                     "id": job_id,
+                    "kind": "webmcp",
                     "site": site,
                     "tool": tool_requested,
                     "input": body.get("input") or {},
@@ -458,11 +521,9 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     if tool_name == "list_tabs":
                         if dry_run:
-                            result = {
-                                "dry_run": True,
-                                "tabs": [],
-                                "note": "Dry-run: no Chrome was contacted, no tab was listed.",
-                            }
+                            self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name,
+                                             "error": EXTENSION_MISSING})
+                            return
                         else:
                             result = {"tabs": cdp_list_tabs()}
                     elif tool_name == "get_tab":
@@ -480,11 +541,9 @@ class Handler(BaseHTTPRequestHandler):
                             self._send(400, {"error": "url is required for create_tab"})
                             return
                         if dry_run:
-                            result = {
-                                "dry_run": True,
-                                "url": url,
-                                "note": "Dry-run: no tab was opened, no app was touched.",
-                            }
+                            self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name,
+                                             "error": EXTENSION_MISSING})
+                            return
                         else:
                             try:
                                 existing = [
@@ -677,6 +736,74 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
+BROWSER_EXTENSION_TOOLS = (
+    "list_tabs", "create_tab", "get_tab", "navigate", "go_back", "switch_tab",
+    "close_tab", "read_page", "get_text", "click", "type", "press_key", "scroll",
+)
+
+EXTENSION_MISSING = (
+    "The Ollamapaca Chrome extension is not connected, so the browser cannot be "
+    "controlled. Tell the user to load the chrome-extension folder of "
+    "ollama-plugin-seed at chrome://extensions (Developer mode, Load unpacked), "
+    "keep Chrome open, and make sure browser control is on in the extension popup."
+)
+
+EXTENSION_TIMEOUT_SECONDS = 45.0
+
+
+def _browser_status(self):
+    connected = self._extension_connected()
+    return {
+        "connected": connected,
+        "last_seen_seconds_ago": (round(time.time() - Handler.extension_last_seen, 1)
+                                  if Handler.extension_last_seen else None),
+        "extension": Handler.extension_info,
+        "control_enabled": Handler.extension_info.get("control", True) if connected else None,
+    }
+
+
+def _extension_connected(self):
+    # The extension long-polls with a 15 second wait, so a heartbeat
+    # within the last 25 seconds means it is there.
+    return Handler.extension_last_seen > 0 and time.time() - Handler.extension_last_seen < 25
+
+
+def _next_job_locked(self):
+    if self.browser_queue:
+        return self.browser_queue.pop(0)
+    while self.webmcp_queue:
+        candidate = self.webmcp_queue.pop(0)
+        if candidate["site"] in self.webmcp_tools:
+            return candidate
+    return None
+
+
+def _run_browser_job(self, action, args):
+    job_id = secrets.token_hex(8)
+    clean = {k: v for k, v in args.items() if k not in ("action",)}
+    job = {"id": job_id, "kind": "browser", "action": action, "args": clean}
+    with self.webmcp_cond:
+        self.browser_pending[job_id] = job
+        self.browser_queue.append(job)
+        self.webmcp_cond.notify_all()
+        got = self.webmcp_cond.wait_for(lambda: job_id in self.browser_results,
+                                        timeout=EXTENSION_TIMEOUT_SECONDS)
+        outcome = self.browser_results.pop(job_id, None)
+        self.browser_pending.pop(job_id, None)
+        if not got:
+            # Never let a stale job run later.
+            self.browser_queue[:] = [j for j in self.browser_queue if j["id"] != job_id]
+    if not got or outcome is None:
+        return {"error": "the Chrome extension did not answer within %d seconds" % EXTENSION_TIMEOUT_SECONDS}
+    return outcome
+
+
+Handler._browser_status = _browser_status
+Handler._extension_connected = _extension_connected
+Handler._next_job_locked = _next_job_locked
+Handler._run_browser_job = _run_browser_job
+
+
 def select_computer_adapter():
     # Real Mac control is opt in only. Dry-run is the default, and
     # it is also what runs on any non-Mac machine, even if real
@@ -698,6 +825,11 @@ def create_server(port=11435, state_path=None):
     Handler.computer_mode = mode
     Handler.computer_real_requested = requested
     Handler.fallback_opens = {}
+    Handler.browser_queue = []
+    Handler.browser_results = {}
+    Handler.browser_pending = {}
+    Handler.extension_last_seen = 0.0
+    Handler.extension_info = {}
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 
 

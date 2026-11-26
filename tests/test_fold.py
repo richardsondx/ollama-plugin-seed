@@ -37,7 +37,7 @@ class FoldManifestTest(unittest.TestCase):
         self.assertNotIn("cua", plugins)
         browser = [t["name"] for t in plugins["browser"]["tools"]]
         computer = [t["name"] for t in plugins["computer"]["tools"]]
-        for expected in ("list_tabs", "create_tab", "get_tab"):
+        for expected in ("list_tabs", "create_tab", "navigate", "read_page", "click", "type"):
             self.assertIn(expected, browser)
         for expected in ("get_state", "open_app", "click", "type_text"):
             self.assertIn(expected, computer)
@@ -95,15 +95,17 @@ class FoldServerTest(unittest.TestCase):
         code, data = request(self.port, "POST", "/api/tools/browser/create_tab/execute",
                              {"url": "https://google.com"})
         self.assertEqual(code, 200)
-        self.assertTrue(data.get("dry_run"))
-        self.assertIn("no tab was opened", data["result"]["note"])
+        # No extension and dry-run: nothing is opened, and the error
+        # says how to connect the extension.
+        self.assertFalse(data.get("ok"))
+        self.assertIn("extension is not connected", data.get("error", ""))
 
     def test_browser_list_tabs_dry_run_lists_no_pretend_tabs(self):
         request(self.port, "POST", "/api/plugins/browser/enable", {})
         code, data = request(self.port, "POST", "/api/tools/browser/list_tabs/execute", {})
         self.assertEqual(code, 200)
-        self.assertTrue(data.get("dry_run"))
-        self.assertEqual(data["result"]["tabs"], [])
+        self.assertFalse(data.get("ok"))
+        self.assertIn("extension is not connected", data.get("error", ""))
 
     def test_computer_open_app_dry_run_records(self):
         request(self.port, "POST", "/api/plugins/computer/enable", {})
@@ -128,7 +130,6 @@ class FoldServerTest(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertTrue(data.get("dry_run"))
         self.assertTrue(data["result"]["dry_run"])
-        self.assertEqual(data["result"]["tabs"], [])
 
     def test_computer_click_confirmation_gate_still_holds(self):
         request(self.port, "POST", "/api/plugins/computer/enable", {})
