@@ -617,9 +617,27 @@ async function runBrowserJob(job) {
 // long-poll loop
 
 let loopRunning = false;
+// When the loop last made progress. A loop that has not moved for a
+// while is stuck on a request that will never finish (after the Mac
+// sleeps or the network changes), so a new loop replaces it.
+let lastLoopTick = 0;
+let loopGeneration = 0;
+const STUCK_AFTER_MS = (POLL_WAIT_SECONDS + 30) * 1000;
+
+// fetchWithTimeout aborts a request that hangs, so one dead
+// connection can never stop the extension from polling again.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function postResult(path, body) {
-  await fetch(SERVER + path, {
+  await fetchWithTimeout(SERVER + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -629,7 +647,7 @@ async function postResult(path, body) {
 async function pollOnce() {
   const { browserControl } = await getSettings();
   const url = SERVER + "/api/browser/next?wait=" + POLL_WAIT_SECONDS + "&version=" + encodeURIComponent(VERSION) + "&control=" + (browserControl ? "1" : "0");
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, {}, (POLL_WAIT_SECONDS + 10) * 1000);
   if (!response.ok) throw new Error("status " + response.status);
   const data = await response.json();
   const job = data && data.job;
@@ -644,22 +662,27 @@ async function pollOnce() {
 }
 
 async function pollLoop() {
-  if (loopRunning) return;
+  if (loopRunning && Date.now() - lastLoopTick < STUCK_AFTER_MS) return;
+  // Either no loop is running, or the running one is stuck. Start a
+  // new one; the old one notices its generation changed and exits.
+  const generation = ++loopGeneration;
   loopRunning = true;
+  lastLoopTick = Date.now();
   try {
-    for (;;) {
+    while (generation === loopGeneration) {
       // An extension API call resets the service worker idle timer,
       // so Chrome keeps this worker alive while the loop runs.
       await chrome.runtime.getPlatformInfo();
+      lastLoopTick = Date.now();
       try {
         await pollOnce();
       } catch (e) {
-        // Executor not running yet. Back off a little and retry.
+        // Executor not running yet, or the request timed out.
         await new Promise((r) => setTimeout(r, 3000));
       }
     }
   } finally {
-    loopRunning = false;
+    if (generation === loopGeneration) loopRunning = false;
   }
 }
 

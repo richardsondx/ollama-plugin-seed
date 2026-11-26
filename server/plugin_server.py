@@ -434,7 +434,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if tool_name not in ("list_tabs", "create_tab", "get_tab"):
                     self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name,
-                                     "error": EXTENSION_MISSING})
+                                     "error": _extension_missing_message()})
                     return
             # Browser WebMCP: real execution through the extension.
             if plugin_name == "browser" and tool_name == "webmcp.list_tools":
@@ -522,7 +522,7 @@ class Handler(BaseHTTPRequestHandler):
                     if tool_name == "list_tabs":
                         if dry_run:
                             self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name,
-                                             "error": EXTENSION_MISSING})
+                                             "error": _extension_missing_message()})
                             return
                         else:
                             result = {"tabs": cdp_list_tabs()}
@@ -542,7 +542,7 @@ class Handler(BaseHTTPRequestHandler):
                             return
                         if dry_run:
                             self._send(200, {"ok": False, "plugin": plugin_name, "tool": tool_name,
-                                             "error": EXTENSION_MISSING})
+                                             "error": _extension_missing_message()})
                             return
                         else:
                             try:
@@ -749,6 +749,17 @@ EXTENSION_MISSING = (
 )
 
 EXTENSION_TIMEOUT_SECONDS = 45.0
+
+
+def _extension_missing_message():
+    if Handler.extension_last_seen:
+        ago = int(time.time() - Handler.extension_last_seen)
+        return (
+            "The Ollamapaca Chrome extension was connected but stopped answering "
+            "%d seconds ago. Tell the user to make sure Chrome is open, then click "
+            "the reload icon on the Ollamapaca Chrome card at chrome://extensions." % ago
+        )
+    return EXTENSION_MISSING
 
 
 def _browser_status(self):
